@@ -188,7 +188,7 @@ class YoutubeSpider(scrapy.Spider):
         
     def notify_completion(self, reason):
         # Socket client setup to send notification
-        server_address = ('localhost', 65432)  # Replace with your server address and port
+        server_address = ('localhost', 8000)  # Replace with your server address and port
         message = f'Spider finished with reason: {reason}'
         
         try:
