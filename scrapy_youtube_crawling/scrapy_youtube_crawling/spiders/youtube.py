@@ -13,6 +13,7 @@ import random
 import json
 import yt_dlp as youtube_dl
 from urllib.parse import urlparse, parse_qs
+import socket
 
 class YoutubeSpider(scrapy.Spider):
     name = "youtube"
@@ -63,6 +64,11 @@ class YoutubeSpider(scrapy.Spider):
 
         for url in urls:
             yield scrapy.Request(url=url.strip(), callback=self.parse)
+
+    def closed(self, reason):
+        # Method called when the spider is closed
+        self.notify_completion(reason) # reason might be one of: finished, close_spider, cancelled, shutdown
+        print(f'Spider closed: {reason}')
 
     def parse(self, response):
         # Initialize the driver for each request
@@ -179,3 +185,18 @@ class YoutubeSpider(scrapy.Spider):
         except Exception as e:
             print(f"Unexpected error: {e}")
             return f'No subtitles available for this video id {video_id}, error {e}'
+        
+    def notify_completion(self, reason):
+        # Socket client setup to send notification
+        server_address = ('localhost', 65432)  # Replace with your server address and port
+        message = f'Spider finished with reason: {reason}'
+        
+        try:
+            # Create a socket object
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                # Connect to the server
+                s.connect(server_address)
+                # Send the message
+                s.sendall(message.encode('utf-8'))
+        except Exception as e:
+            self.log(f'Failed to send notification: {e}')
