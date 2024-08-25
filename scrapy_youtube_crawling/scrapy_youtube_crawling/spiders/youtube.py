@@ -11,6 +11,8 @@ from selenium.webdriver.chrome.options import Options
 import time
 import random
 import json
+import yt_dlp as youtube_dl
+from urllib.parse import urlparse, parse_qs
 
 class YoutubeSpider(scrapy.Spider):
     name = "youtube"
@@ -78,26 +80,12 @@ class YoutubeSpider(scrapy.Spider):
         duration = response.xpath('//meta[@itemprop="duration"]/@content').get()
         item['duration'] = self.parse_duration(duration)
 
-        # Parse comments (simplified example)
-        # soup = BeautifulSoup(response.text, 'lxml')
-
         # call another function to get youtube comments
         item['comments'] = self.scrape_youtube_comments(response)
-        
-        # self.driver.quit()  # Close the Selenium browser after scraping
 
-        # Parse subtitles (if available)
-        # subtitles = []
-        # for track in soup.find_all("track"):
-        #     subtitles.append(track.get("src"))
-        # item['subtitles'] = subtitles
-
-        # solution 2
-        # item['subtitles'] = self.scrape_youtube_subtitles(response=response)
+        item['subtitles'] = self.download_subtitles_2(response.url)
 
         yield item
-
-        # self.write_item(item)
 
     def parse_duration(self, duration_string):
         # Parse ISO 8601 duration format (e.g., PT1H2M3S)
@@ -144,40 +132,81 @@ class YoutubeSpider(scrapy.Spider):
             })
         
         return comment_list
-    
-    def scrape_youtube_subtitles(self, response) -> str:
+
+
+    def download_subtitles(self, video_url):
+        video_id = video_url.split('v=')[1]
+        save_as = f'{video_id}.%(ext)s'
+        ytdlp_options = {
+            'ratelimit': '100K',  # Limit download speed to 100KB/s
+            'writesubtitles': True,  # Download subtitles if available
+            'skip_download': True,   # Skip downloading the video itself
+            'subtitleslangs': ['en'],  # Specify the subtitle language, e.g., 'en' for English
+            'outtmpl': save_as,  # Define output template
+            'listsubs': True, # List available subtitles that supported by Yourube
+            'writeautomaticsub': True,  # This option enables auto-generated subtitles
+            'subtitlesformat': 'srt',  # Download subtitles in SRT format
+        }
+        
         try:
-            self.driver.get(response.url)
-            time.sleep(5)  # Allow time for the page to load
+            with youtube_dl.YoutubeDL(ytdlp_options) as ydl:
+                info_dict = ydl.extract_info(video_url, download=False)
+                subtitles = info_dict.get('subtitles', {})
+                if subtitles:
+                    print("Available subtitles:")
+                    ydl.download([video_url])  # Download the subtitles
+                    return video_id
+                else:
+                    print("No subtitles available for this video.")
+                    return 'No subtitles found!'
 
-            # Click the "More actions" button to open subtitles options
-            more_actions_button = self.driver.find_element_by_css_selector('button[aria-label="More actions"]')
-            more_actions_button.click()
-            time.sleep(2)
+            
+        except Exception as e:
+            print(f"Error: {e}")
 
-            # Click the "Open transcript" button if available
-            try:
-                transcript_button = self.driver.find_element_by_xpath('//button[text()="Open transcript"]')
-                transcript_button.click()
-                time.sleep(2)
+    def download_subtitles_2(self, video_url):
+        # Extract video ID more robustly
+        video_id = parse_qs(urlparse(video_url).query).get('v', [None])[0]
+        
+        if not video_id:
+            return "Invalid YouTube URL"
 
-                # Extract subtitles from the transcript
-                subtitles = []
-                transcript_elements = self.driver.find_elements_by_css_selector('div.ytd-transcript-body-renderer')
-                for element in transcript_elements:
-                    text = element.text
-                    if text:
-                        subtitles.append(text)
+        save_as = f'{video_id}.%(ext)s'
+        ytdlp_options = {
+            'ratelimit': 100 * 1024,  # Limit download speed to 100KB/s
+            'writesubtitles': True,  # Download subtitles if available
+            'skip_download': True,   # Skip video download
+            'subtitleslangs': ['en'],  # Specify language for subtitles
+            'outtmpl': save_as,  # Save as video_id.extension
+            'listsubs': True,  # List available subtitles
+            'writeautomaticsub': True,  # Enable auto-generated subtitles
+            'subtitlesformat': 'srt',  # Subtitles in SRT format
+        }
 
-                # Join subtitles into a single string
-                subtitles_text = "\n".join(subtitles)
-                print('subtitles_text', subtitles_text)
-                return subtitles_text
+        try:
+            isDownloaded = False
+            with youtube_dl.YoutubeDL(ytdlp_options) as ydl:
+                info_dict = ydl.extract_info(video_url, download=False)
+                subtitles = info_dict.get('subtitles', {})
 
-            except Exception as e:
-                print(f"Error extracting subtitles: {e}")
-                return None
+                if subtitles:
+                    print("Available subtitles:")
 
-        finally:
-            self.driver.quit()
+                    for lang, sub_info in subtitles.items():
+                        print(f"Language: {lang}, Formats: {sub_info}")
 
+                    # Download subtitles
+                    ydl.download([video_url])
+                    time.sleep(3)
+                    isDownloaded = True
+                
+            if isDownloaded:
+                return video_id
+            else:
+                return f'No subtitles available for this video id {video_id}.'
+        except youtube_dl.utils.DownloadError as e:
+            print(f"Download error: {e}")
+            return f'No subtitles available for this video id {video_id}, error {e}'
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return f'No subtitles available for this video id {video_id}, error {e}'

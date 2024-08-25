@@ -5,8 +5,8 @@ app = FastAPI()
 
 @app.post("/crawl/")
 async def crawl_youtube(urls: list[str], background_tasks: BackgroundTasks):
-    # if len(urls) > 1000000:
-    #     raise HTTPException(status_code=400, detail="Too many URLs. Please provide less than 1000000 at a time.")
+    if len(urls) > 1000000:
+        raise HTTPException(status_code=400, detail="Too many URLs. Please provide less than 1000000 at a time.")
     
     # Write the URLs to a file that Scrapy can read
     with open("scrapy_youtube_crawling/input_urls.txt", "w") as f:
@@ -19,5 +19,4 @@ async def crawl_youtube(urls: list[str], background_tasks: BackgroundTasks):
 
 def run_spider():
     subprocess.run(["scrapy", "crawl", "youtube", "-o", "output.json", "--loglevel=DEBUG"], cwd="scrapy_youtube_crawling")
-    # subprocess.run('scrapy crawl youtube', shell=True, cwd="scrapy_youtube_crawling")
 
