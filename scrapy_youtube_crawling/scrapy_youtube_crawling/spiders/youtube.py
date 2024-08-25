@@ -91,6 +91,13 @@ class YoutubeSpider(scrapy.Spider):
 
         item['subtitles'] = self.download_subtitles(response.url)
 
+        with open("scrapy_youtube_crawling/progress.txt", 'r') as file:
+            content = file.read()
+            if content == '':
+                content = 0
+            with open("scrapy_youtube_crawling/progress.txt", "w") as f:
+                f.write(f"{int(content) + 1 }\n")
+
         yield item
 
     def parse_duration(self, duration_string):
