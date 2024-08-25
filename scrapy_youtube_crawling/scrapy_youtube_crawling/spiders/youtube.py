@@ -70,31 +70,7 @@ class YoutubeSpider(scrapy.Spider):
         item['duration'] = self.parse_duration(duration)
 
         # Parse comments (simplified example)
-        # comments = []
         soup = BeautifulSoup(response.text, 'lxml')
-
-        # v3: using Selenium
-        # self.driver.get(response.url)
-        # time.sleep(5)
-
-        # Scroll to load more comments (adjust as needed)
-        # for _ in range(2):  # Scroll down 2 times
-        #     self.driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
-        #     time.sleep(5)  # Wait for comments to load
-
-        # Scroll down to load more comments
-        # comment_list = []
-        # comments = self.driver.find_elements(By.CSS_SELECTOR, "#contents #content-text")
-        # authors = self.driver.find_elements(By.CSS_SELECTOR, "#contents #author-text")
-        # for comment, author in zip(comments, authors):
-        #     # print('text comment...', comment.text)
-        #     # print('author...', author.text)
-        #     comment_list.append({
-        #         author.text: comment.text
-        #     })
-        
-        # print('comment_list', comment_list)
-        # item['comments'] = comment_list
 
         # call another function to get youtube comments
         item['comments'] = self.scrape_youtube_comments(response)
@@ -107,7 +83,6 @@ class YoutubeSpider(scrapy.Spider):
             subtitles.append(track.get("src"))
         item['subtitles'] = subtitles
 
-        print('item...', item)
         yield item
 
     def parse_duration(self, duration_string):
@@ -154,5 +129,4 @@ class YoutubeSpider(scrapy.Spider):
                 author.text: comment.text
             })
         
-        print('comment_list', comment_list)
         return comment_list
