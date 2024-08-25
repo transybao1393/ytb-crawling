@@ -83,7 +83,7 @@ class YoutubeSpider(scrapy.Spider):
         # call another function to get youtube comments
         item['comments'] = self.scrape_youtube_comments(response)
 
-        item['subtitles'] = self.download_subtitles_2(response.url)
+        item['subtitles'] = self.download_subtitles(response.url)
 
         yield item
 
@@ -133,38 +133,7 @@ class YoutubeSpider(scrapy.Spider):
         
         return comment_list
 
-
     def download_subtitles(self, video_url):
-        video_id = video_url.split('v=')[1]
-        save_as = f'{video_id}.%(ext)s'
-        ytdlp_options = {
-            'ratelimit': '100K',  # Limit download speed to 100KB/s
-            'writesubtitles': True,  # Download subtitles if available
-            'skip_download': True,   # Skip downloading the video itself
-            'subtitleslangs': ['en'],  # Specify the subtitle language, e.g., 'en' for English
-            'outtmpl': save_as,  # Define output template
-            'listsubs': True, # List available subtitles that supported by Yourube
-            'writeautomaticsub': True,  # This option enables auto-generated subtitles
-            'subtitlesformat': 'srt',  # Download subtitles in SRT format
-        }
-        
-        try:
-            with youtube_dl.YoutubeDL(ytdlp_options) as ydl:
-                info_dict = ydl.extract_info(video_url, download=False)
-                subtitles = info_dict.get('subtitles', {})
-                if subtitles:
-                    print("Available subtitles:")
-                    ydl.download([video_url])  # Download the subtitles
-                    return video_id
-                else:
-                    print("No subtitles available for this video.")
-                    return 'No subtitles found!'
-
-            
-        except Exception as e:
-            print(f"Error: {e}")
-
-    def download_subtitles_2(self, video_url):
         # Extract video ID more robustly
         video_id = parse_qs(urlparse(video_url).query).get('v', [None])[0]
         
