@@ -18,6 +18,6 @@ async def crawl_youtube(urls: list[str], background_tasks: BackgroundTasks):
     return {"message": "Crawling started. Data will be processed in the background."}
 
 def run_spider():
-    subprocess.run(["scrapy", "crawl", "youtube"], cwd="scrapy_youtube_crawling")
+    subprocess.run(["scrapy", "crawl", "youtube", "-o", "output.json", "--loglevel=DEBUG"], cwd="scrapy_youtube_crawling")
     # subprocess.run('scrapy crawl youtube', shell=True, cwd="scrapy_youtube_crawling")
 

@@ -10,12 +10,19 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 import time
 import random
+import json
 
 class YoutubeSpider(scrapy.Spider):
     name = "youtube"
     allowed_domains = ["youtube.com"]
 
     def __init__(self, *args, **kwargs):
+        self.driver = None
+
+    def init_driver(self):
+        if self.driver:
+            self.driver.quit()
+        
         # Specify the custom User-Agent
         user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
@@ -44,7 +51,6 @@ class YoutubeSpider(scrapy.Spider):
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"
         ]
         user_agent = random.choice(user_agents)
-
         # Run in headless mode
         self.driver = self.create_chrome_driver(user_agent=user_agent)
 
@@ -57,6 +63,9 @@ class YoutubeSpider(scrapy.Spider):
             yield scrapy.Request(url=url.strip(), callback=self.parse)
 
     def parse(self, response):
+        # Initialize the driver for each request
+        self.init_driver()
+        print('response url', response.url)
         item = ScrapyYoutubeCrawlingItem()
 
         # Parse video title
@@ -70,20 +79,25 @@ class YoutubeSpider(scrapy.Spider):
         item['duration'] = self.parse_duration(duration)
 
         # Parse comments (simplified example)
-        soup = BeautifulSoup(response.text, 'lxml')
+        # soup = BeautifulSoup(response.text, 'lxml')
 
         # call another function to get youtube comments
         item['comments'] = self.scrape_youtube_comments(response)
         
-        self.driver.quit()  # Close the Selenium browser after scraping
+        # self.driver.quit()  # Close the Selenium browser after scraping
 
         # Parse subtitles (if available)
-        subtitles = []
-        for track in soup.find_all("track"):
-            subtitles.append(track.get("src"))
-        item['subtitles'] = subtitles
+        # subtitles = []
+        # for track in soup.find_all("track"):
+        #     subtitles.append(track.get("src"))
+        # item['subtitles'] = subtitles
+
+        # solution 2
+        # item['subtitles'] = self.scrape_youtube_subtitles(response=response)
 
         yield item
+
+        # self.write_item(item)
 
     def parse_duration(self, duration_string):
         # Parse ISO 8601 duration format (e.g., PT1H2M3S)
@@ -130,3 +144,40 @@ class YoutubeSpider(scrapy.Spider):
             })
         
         return comment_list
+    
+    def scrape_youtube_subtitles(self, response) -> str:
+        try:
+            self.driver.get(response.url)
+            time.sleep(5)  # Allow time for the page to load
+
+            # Click the "More actions" button to open subtitles options
+            more_actions_button = self.driver.find_element_by_css_selector('button[aria-label="More actions"]')
+            more_actions_button.click()
+            time.sleep(2)
+
+            # Click the "Open transcript" button if available
+            try:
+                transcript_button = self.driver.find_element_by_xpath('//button[text()="Open transcript"]')
+                transcript_button.click()
+                time.sleep(2)
+
+                # Extract subtitles from the transcript
+                subtitles = []
+                transcript_elements = self.driver.find_elements_by_css_selector('div.ytd-transcript-body-renderer')
+                for element in transcript_elements:
+                    text = element.text
+                    if text:
+                        subtitles.append(text)
+
+                # Join subtitles into a single string
+                subtitles_text = "\n".join(subtitles)
+                print('subtitles_text', subtitles_text)
+                return subtitles_text
+
+            except Exception as e:
+                print(f"Error extracting subtitles: {e}")
+                return None
+
+        finally:
+            self.driver.quit()
+

@@ -3,3 +3,4 @@ fastapi[standard]
 beautifulsoup4
 selenium 
 webdriver-manager
+yt-dlp

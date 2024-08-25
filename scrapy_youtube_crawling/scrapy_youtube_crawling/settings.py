@@ -91,3 +91,12 @@ ITEM_PIPELINES = {
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
+
+# FEED
+# FEEDS = {
+#     'output.json': {
+#         'format': 'json',         # Output format
+#         'overwrite': True,        # Overwrite the file if it already exists
+#         'encoding': 'utf8',       # File encoding
+#     },
+# }
