@@ -21,6 +21,8 @@ class YoutubeSpider(scrapy.Spider):
 
     def __init__(self, *args, **kwargs):
         self.driver = None
+        self.crawled_urls = set()  # To track crawled URLs
+        self.server_address = ('localhost', 9002)  # Server address and port for socket notification
 
     def init_driver(self):
         if self.driver:
@@ -71,9 +73,10 @@ class YoutubeSpider(scrapy.Spider):
         print(f'Spider closed: {reason}')
 
     def parse(self, response):
+        # Add the crawled URL to the set
+        self.crawled_urls.add(response.url)
         # Initialize the driver for each request
         self.init_driver()
-        print('response url', response.url)
         item = ScrapyYoutubeCrawlingItem()
 
         # Parse video title
@@ -91,7 +94,11 @@ class YoutubeSpider(scrapy.Spider):
 
         item['subtitles'] = self.download_subtitles(response.url)
 
+        
         yield item
+
+        # nofity 
+        self.notify_completion(response.url + ' crawled')
 
     def parse_duration(self, duration_string):
         # Parse ISO 8601 duration format (e.g., PT1H2M3S)
@@ -188,15 +195,14 @@ class YoutubeSpider(scrapy.Spider):
         
     def notify_completion(self, reason):
         # Socket client setup to send notification
-        server_address = ('localhost', 8000) 
         message = f'Spider finished with reason: {reason}'
-        
+        print("...SOCKET SERVER...", self.server_address)
         try:
             # Create a socket object
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 # Connect to the server
-                s.connect(server_address)
+                s.connect(self.server_address)
                 # Send the message
                 s.sendall(message.encode('utf-8'))
         except Exception as e:
-            self.log(f'Failed to send notification: {e}')
+            print(f'Failed to send notification: {e}')

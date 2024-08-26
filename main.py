@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket
 import subprocess
+import threading
+import socket
 from starlette.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 
 app = FastAPI()
-
+SOCKET_PORT = 9002
+SOCKET_HOST = 'localhost'
 
 # List of allowed origins
 origins = [
@@ -36,48 +38,31 @@ async def crawl_youtube(urls: list[str], background_tasks: BackgroundTasks):
 def run_spider():
     subprocess.run(["scrapy", "crawl", "youtube", "-o", "output.json", "--loglevel=DEBUG"], cwd="scrapy_youtube_crawling")
 
+def start_socket_server():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind((SOCKET_HOST, SOCKET_PORT))
+        server_socket.listen(5)
+        print(f"Socket server listening on {SOCKET_HOST}:{SOCKET_PORT}")
+        
+        while True:
+            conn, addr = server_socket.accept()
+            with conn:
+                print(f"Connected by {addr}")
+                while True:
+                    data = conn.recv(1024)
+                    if not data:
+                        break
+                    print(f"Received message: {data.decode('utf-8')}")
+                    conn.sendall(data.decode('utf-8')) # sending status to all
 
-# for socket connections
-# HTML for testing WebSocket connection
-html = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>WebSocket Test</title>
-    </head>
-    <body>
-        <h1>WebSocket Test</h1>
-        <textarea id="messages" cols="100" rows="20"></textarea><br>
-        <input id="messageInput" type="text" size="100"><button id="sendMessage">Send</button>
+# Start the socket server in a separate thread
+socket_thread = threading.Thread(target=start_socket_server, daemon=True)
+socket_thread.start()
 
-        <script>
-            const ws = new WebSocket("ws://localhost:8000/ws");
-            const messageInput = document.getElementById("messageInput");
-            const sendMessageButton = document.getElementById("sendMessage");
-            const messages = document.getElementById("messages");
+@app.get("/")
+def read_root():
+    return {"message": "FastAPI server with socket running"}
 
-            ws.onmessage = function(event) {
-                messages.value += event.data + "\\n";
-            };
-
-            sendMessageButton.onclick = function() {
-                const message = messageInput.value;
-                ws.send(message);
-                messageInput.value = "";
-            };
-        </script>
-    </body>
-</html>
-"""
-
-@app.get("/", summary="Socket test connection", tags=["Socket"])
-async def get():
-    return HTMLResponse(html)
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    while True:
-        data = await websocket.receive_text()
-        await websocket.send_text(f"Message text was: {data}")
-
+@app.get("/status")
+def status():
+    return {"status": f"Socket server running on port {SOCKET_PORT}"}
