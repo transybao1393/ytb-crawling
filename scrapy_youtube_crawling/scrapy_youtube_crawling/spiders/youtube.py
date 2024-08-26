@@ -14,6 +14,8 @@ import json
 import yt_dlp as youtube_dl
 from urllib.parse import urlparse, parse_qs
 import socket
+import websocket
+import threading
 
 class YoutubeSpider(scrapy.Spider):
     name = "youtube"
@@ -22,7 +24,7 @@ class YoutubeSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs):
 
         # FIXME: Should getting from env file
-        self.SOCKET_PORT = 9006
+        self.SOCKET_PORT = 9002
         self.SOCKET_HOST = 'localhost'
 
         self.driver = None
@@ -30,7 +32,29 @@ class YoutubeSpider(scrapy.Spider):
         # self.server_address = (self.SOCKET_PORT, self.SOCKET_HOST)  # Server address and port for socket notification
         self.server_address = (self.SOCKET_HOST, self.SOCKET_PORT)
 
+        # websocket define
+        self.websocket_url = "ws://localhost:8000/ws/2"  # WebSocket server URL with client id is 2
+        self.ws = None
+        self.ws_thread = None
+
+    def open_websocket(self):
+        # Start the WebSocket connection in a separate thread to avoid blocking
+        self.ws = websocket.WebSocketApp(
+            self.websocket_url,
+            on_open=self.on_open,
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close
+        )
+        self.ws_thread = threading.Thread(target=self.ws.run_forever)
+        self.ws_thread.daemon = True
+        self.ws_thread.start()
+
     def init_driver(self):
+
+        # Open WebSocket connection before making requests
+        self.open_websocket()
+
         if self.driver:
             self.driver.quit()
         
@@ -77,6 +101,12 @@ class YoutubeSpider(scrapy.Spider):
         # Method called when the spider is closed
         # self.notify_completion(reason) # reason might be one of: finished, close_spider, cancelled, shutdown
         print(f'Spider closed: {reason}')
+        # close websocket when closed
+        if self.ws:
+            self.ws.close()
+            print("WebSocket connection closed after spider completion")
+        if self.ws_thread:
+            self.ws_thread.join()
 
     def parse(self, response):
         # Add the crawled URL to the set
@@ -106,6 +136,7 @@ class YoutubeSpider(scrapy.Spider):
         # nofity 
         video_id = parse_qs(urlparse(response.url).query).get('v', [None])[0]
         self.notify_completion(f'{video_id} crawled')
+        self.notify_via_websocket(video_id)
 
     def parse_duration(self, duration_string):
         # Parse ISO 8601 duration format (e.g., PT1H2M3S)
@@ -221,3 +252,24 @@ class YoutubeSpider(scrapy.Spider):
                 s.sendall(reason.encode('utf-8'))
         except Exception as e:
             print(f'Failed to send notification: {e}')
+
+
+    # websocket events
+    def on_open(self, ws):
+        print("WebSocket connection opened")
+
+    def on_message(self, ws, message):
+        print(f"Message from server: {message}")
+
+    def on_error(self, ws, error):
+        print(f"WebSocket error: {error}")
+
+    def on_close(self, ws, close_status_code, close_msg):
+        print("WebSocket connection closed")
+
+    def notify_via_websocket(self, video_id: str):
+        try:
+            message = f"{video_id} crawled"
+            self.ws.send(message)
+        except Exception as e:
+            print(f"Error sending WebSocket message: {e}")
