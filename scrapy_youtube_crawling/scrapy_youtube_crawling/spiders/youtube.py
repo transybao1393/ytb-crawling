@@ -29,8 +29,6 @@ class YoutubeSpider(scrapy.Spider):
 
         self.driver = None
         self.crawled_urls = set()  # To track crawled URLs
-        # self.server_address = (self.SOCKET_PORT, self.SOCKET_HOST)  # Server address and port for socket notification
-        self.server_address = (self.SOCKET_HOST, self.SOCKET_PORT)
 
         # websocket define
         self.websocket_url = "ws://localhost:8000/ws/2"  # WebSocket server URL with client id is 2
@@ -127,7 +125,6 @@ class YoutubeSpider(scrapy.Spider):
 
         # call another function to get youtube comments
         item['comments'] = self.scrape_youtube_comments(response)
-
         item['subtitles'] = self.download_subtitles(response.url)
 
         
@@ -135,7 +132,6 @@ class YoutubeSpider(scrapy.Spider):
 
         # nofity 
         video_id = parse_qs(urlparse(response.url).query).get('v', [None])[0]
-        self.notify_completion(f'{video_id} crawled')
         self.notify_via_websocket(video_id)
 
     def parse_duration(self, duration_string):
@@ -230,28 +226,6 @@ class YoutubeSpider(scrapy.Spider):
         except Exception as e:
             print(f"Unexpected error: {e}")
             return f'No subtitles available for this video id {video_id}, error {e}'
-
-    def notify_completion(self, reason: str):
-        # Socket client setup to send notification
-        # message = f'Spider finished with reason: {reason}'
-        print("...SOCKET SERVER...", self.server_address)
-        print('reason', reason, type(reason))
-
-        try:
-            # Create a socket object
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                # Connect to the server
-                s.connect(self.server_address)
-
-                print("Connection to server successful.")
-                # Receive acknowledgment from the server
-                acknowledgment = s.recv(1024)
-                print(f"Server acknowledgment: {acknowledgment.decode('utf-8')}")
-
-                # send notification for every each of urls
-                s.sendall(reason.encode('utf-8'))
-        except Exception as e:
-            print(f'Failed to send notification: {e}')
 
 
     # websocket events
