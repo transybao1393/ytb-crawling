@@ -126,10 +126,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
             data = await websocket.receive_text()
             print(f"Client #{client_id} says: {data}")
             await manager.send_personal_message(data, websocket)
-            # await manager.broadcast(f"Client #{client_id} says: {data}")
+            await manager.broadcast(f"Client #{client_id} says: {data}")
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-        await manager.broadcast(f"Client #{client_id} left the chat")
+        # await manager.broadcast(f"Client #{client_id} left the chat")
 
 # Example route to verify FastAPI is running
 @app.get("/")
