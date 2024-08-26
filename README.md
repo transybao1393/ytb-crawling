@@ -29,7 +29,7 @@ Redoc
 ![Redoc](./resources/api_documentation_redoc.png)
 
 ## ARCHITECTURE
-![ARCHITECTURE](Untitled-2023-08-03-1813.png)
+![architecture](architecture.png)
 
 1. Backend
     Technology Choice: FastAPI
