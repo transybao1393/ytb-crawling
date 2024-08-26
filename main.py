@@ -1,8 +1,23 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket
 import subprocess
+from starlette.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 app = FastAPI()
+
+
+# List of allowed origins
+origins = [
+    "*",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/crawl/", summary="Youtube videos crawling api", tags=["Youtube videos"])
 async def crawl_youtube(urls: list[str], background_tasks: BackgroundTasks):
