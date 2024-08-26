@@ -5,8 +5,11 @@ import socket
 from starlette.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-SOCKET_PORT = 9002
+SOCKET_PORT = 9006
 SOCKET_HOST = 'localhost'
+
+# A flag to stop the server
+shutdown_event = threading.Event()
 
 # List of allowed origins
 origins = [
@@ -44,16 +47,32 @@ def start_socket_server():
         server_socket.listen(5)
         print(f"Socket server listening on {SOCKET_HOST}:{SOCKET_PORT}")
         
-        while True:
-            conn, addr = server_socket.accept()
-            with conn:
-                print(f"Connected by {addr}")
-                while True:
-                    data = conn.recv(1024)
-                    if not data:
-                        break
-                    print(f"Received message: {data.decode('utf-8')}")
-                    conn.sendall(data.decode('utf-8')) # sending status to all
+        server_socket.settimeout(1.0) # Set a timeout to periodically check for shutdown
+
+        while not shutdown_event.is_set():
+            try:
+                conn, addr = server_socket.accept()
+                with conn:
+                    print(f"Connected by {addr}")
+
+                    # sending acknowledge message
+                    acknowledgment = "Connection successful"
+                    conn.sendall(acknowledgment.encode('utf-8'))
+
+                    # actively receiving data from client
+                    while True:
+                        data = conn.recv(1024)
+                        if not data:
+                            break
+                        print(f"Received message: {data.decode('utf-8')}")
+
+                        # broadcast message
+                        conn.sendall((data.decode('utf-8')).encode('utf-8')) # sending status to all
+            except socket.timeout:
+                continue  # Continue loop to check shutdown flag
+            except Exception as e:
+                print(f"Error in socket server: {e}")
+                break # Optionally break the loop on other exceptions
 
 # Start the socket server in a separate thread
 socket_thread = threading.Thread(target=start_socket_server, daemon=True)
@@ -66,3 +85,10 @@ def read_root():
 @app.get("/status")
 def status():
     return {"status": f"Socket server running on port {SOCKET_PORT}"}
+
+# Shutdown event for FastAPI
+@app.on_event("shutdown")
+def shutdown():
+    print("FastAPI shutdown initiated. Shutting down socket server...")
+    shutdown_event.set()  # Signal the socket server to shut down
+    socket_thread.join()  # Wait for the socket server to close

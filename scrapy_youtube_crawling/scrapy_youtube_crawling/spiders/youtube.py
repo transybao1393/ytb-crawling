@@ -20,9 +20,15 @@ class YoutubeSpider(scrapy.Spider):
     allowed_domains = ["youtube.com"]
 
     def __init__(self, *args, **kwargs):
+
+        # FIXME: Should getting from env file
+        self.SOCKET_PORT = 9006
+        self.SOCKET_HOST = 'localhost'
+
         self.driver = None
         self.crawled_urls = set()  # To track crawled URLs
-        self.server_address = ('localhost', 9002)  # Server address and port for socket notification
+        # self.server_address = (self.SOCKET_PORT, self.SOCKET_HOST)  # Server address and port for socket notification
+        self.server_address = (self.SOCKET_HOST, self.SOCKET_PORT)
 
     def init_driver(self):
         if self.driver:
@@ -69,7 +75,7 @@ class YoutubeSpider(scrapy.Spider):
 
     def closed(self, reason):
         # Method called when the spider is closed
-        self.notify_completion(reason) # reason might be one of: finished, close_spider, cancelled, shutdown
+        # self.notify_completion(reason) # reason might be one of: finished, close_spider, cancelled, shutdown
         print(f'Spider closed: {reason}')
 
     def parse(self, response):
@@ -98,7 +104,8 @@ class YoutubeSpider(scrapy.Spider):
         yield item
 
         # nofity 
-        self.notify_completion(response.url + ' crawled')
+        video_id = parse_qs(urlparse(response.url).query).get('v', [None])[0]
+        self.notify_completion(f'{video_id} crawled')
 
     def parse_duration(self, duration_string):
         # Parse ISO 8601 duration format (e.g., PT1H2M3S)
@@ -192,17 +199,25 @@ class YoutubeSpider(scrapy.Spider):
         except Exception as e:
             print(f"Unexpected error: {e}")
             return f'No subtitles available for this video id {video_id}, error {e}'
-        
-    def notify_completion(self, reason):
+
+    def notify_completion(self, reason: str):
         # Socket client setup to send notification
-        message = f'Spider finished with reason: {reason}'
+        # message = f'Spider finished with reason: {reason}'
         print("...SOCKET SERVER...", self.server_address)
+        print('reason', reason, type(reason))
+
         try:
             # Create a socket object
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 # Connect to the server
                 s.connect(self.server_address)
-                # Send the message
-                s.sendall(message.encode('utf-8'))
+
+                print("Connection to server successful.")
+                # Receive acknowledgment from the server
+                acknowledgment = s.recv(1024)
+                print(f"Server acknowledgment: {acknowledgment.decode('utf-8')}")
+
+                # send notification for every each of urls
+                s.sendall(reason.encode('utf-8'))
         except Exception as e:
             print(f'Failed to send notification: {e}')
